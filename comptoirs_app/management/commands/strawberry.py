@@ -78,7 +78,7 @@ def resolve_related_fields(relations, model):
                 if related[0].lower() == 'manytomanyrel':
                     # automatically generate code for the reverse relationship
                     code += f"    @gql.django.field\n"
-                    code += f"    def {related[1].lower()}s(self, root, info):\n"
+                    code += f"    def {related[1].lower()}s(self, root, info) -> List['{related[1]}Type']:\n"
                     code += f"        return {model}.objects.{related[1].lower()}_set.all()\n"
 
     return code
@@ -105,8 +105,9 @@ def resolve_related_orders(relations, model, related):
 
 
 def generate_type(obj, models, relations, filename=f"{str(settings.BASE_DIR)}/types.py"):
+    code = ""
     for model in models:
-        code = f"""@gql.django.type"""
+        code += f"""@gql.django.type"""
         # add the model to the type annotation
         code += f"({model.__name__})\n"
         # define the class for the graphql type
@@ -117,15 +118,54 @@ def generate_type(obj, models, relations, filename=f"{str(settings.BASE_DIR)}/ty
         # end of fields declaration
         code += "\n"
         code += resolve_related_fields(relations, model.__name__) + '\n'
-        if filename == "stdout":
-            obj.stdout.write(obj.style.NOTICE(code))
-        else:
-            generate_file(filename, code)
+    if filename == "stdout":
+        obj.stdout.write(obj.style.NOTICE(code))
+    else:
+        generate_file(filename, code)
+
+
+def generate_types(obj, models, relations, filename=f"{str(settings.BASE_DIR)}/types.py"):
+    code = ""
+    code += "from strawberry_django_plus import gql\n"
+    for app in get_generated_apps():
+        code += f"from {app}.models import *\n"
+    # end of import
+    code += "from typing import List, Optional\n"
+    code += "\n"
+    code += f"from .inputs import *\n"
+    code += f"from .filters import *\n"
+    code += f"from .orders import *\n\n\n"
+    generate_file(filename, code)
+    # reset code to empty string
+    code = ""
+    for model in models:
+        code += f"""@gql.django.type"""
+        # add the model to the type annotation
+        code += f"({model.__name__}, filters={model.__name__}Filter, order={model.__name__}Order)\n"
+        # define the class for the graphql type
+        code += f"class {model.__name__}Type:\n"
+        # add each field of the models in django
+        for field in model._meta.fields:
+            code += f"    {field.name}: gql.auto\n"
+        # end of fields declaration
+        code += "\n"
+        code += resolve_related_fields(relations, model.__name__) + '\n'
+    if filename == "stdout":
+        obj.stdout.write(obj.style.NOTICE(code))
+    else:
+        generate_file(filename, code)
 
 
 def generate_inputs(obj, models, filename=f"{str(settings.BASE_DIR)}/inputs.py"):
+    code = ""
+    code += "from strawberry_django_plus import gql\n"
+    for app in get_generated_apps():
+        code += f"from {app}.models import *\n"
+    # end of import
+    code += "\n"
     for model in models:
-        code = f"""@gql.django.input({model.__name__}, partial=True)\n"""
+        # normal Input
+        code += f"""@gql.django.input({model.__name__}, partial=True)\n"""
         # define the class for the graphql type
         code += f"class {model.__name__}Input:\n"
         # add each field of the models in django
@@ -133,40 +173,60 @@ def generate_inputs(obj, models, filename=f"{str(settings.BASE_DIR)}/inputs.py")
             code += f"    {field.name}: gql.auto\n"
         # end of fields declaration
         code += "\n"
-        if filename == "stdout":
-            obj.stdout.write(obj.style.NOTICE(code))
-        else:
-            generate_file(filename, code)
+        # Input partial for update
+        code += f"""@gql.django.partial({model.__name__})\n"""
+        # define the class for the graphql type
+        code += f"class {model.__name__}InputPartial(gql.NodeInput):\n"
+        # add each field of the models in django
+        for field in model._meta.fields:
+            code += f"    {field.name}: gql.auto\n"
+        # end of fields declaration
+        code += "\n"
+    if filename == "stdout":
+        obj.stdout.write(obj.style.NOTICE(code))
+    else:
+        generate_file(filename, code)
 
 
 def generate_filters(obj, models, relations, related=True, filename=f"{str(settings.BASE_DIR)}/filters.py"):
+    code = ""
+    code += "from strawberry_django_plus import gql\n"
+    for app in get_generated_apps():
+        code += f"from {app}.models import *\n"
+    # end of import
+    code += "\n"
     for model in models:
-        code = f"""@gql.django.filters.filter({model.__name__}, lookups=True)\n"""
+        code += f"""@gql.django.filters.filter({model.__name__}, lookups=True)\n"""
         # define the class for the graphql type
         code += f"class {model.__name__}Filter:\n"
         # add each field of the models in django
         for field in model._meta.fields:
             code += f"    {field.name}: gql.auto\n"
         code += resolve_related_filters(relations, model.__name__, related) + '\n'
-        if filename == "stdout":
-            obj.stdout.write(obj.style.NOTICE(code))
-        else:
-            generate_file(filename, code)
+    if filename == "stdout":
+        obj.stdout.write(obj.style.NOTICE(code))
+    else:
+        generate_file(filename, code)
 
 
 def generate_orders(obj, models, relations, related=True, filename=f"{str(settings.BASE_DIR)}/orders.py"):
+    code = "from strawberry_django_plus import gql\n"
+    for app in get_generated_apps():
+        code += f"from {app}.models import *\n"
+    # end of import
+    code += "\n"
     for model in models:
-        code = f"""@gql.django.ordering.order({model.__name__})\n"""
+        code += f"""@gql.django.ordering.order({model.__name__})\n"""
         # define the class for the graphql type
         code += f"class {model.__name__}Order:\n"
         # add each field of the models in django
         for field in model._meta.fields:
             code += f"    {field.name}: gql.auto\n"
-        code += resolve_related_filters(relations, model.__name__, related) + '\n'
-        if filename == "stdout":
-            obj.stdout.write(obj.style.NOTICE(code))
-        else:
-            generate_file(filename, code)
+        code += resolve_related_orders(relations, model.__name__, related) + '\n'
+    if filename == "stdout":
+        obj.stdout.write(obj.style.NOTICE(code))
+    else:
+        generate_file(filename, code)
 
 
 def generate_query_type(obj, models, filename=f"{str(settings.BASE_DIR)}/queries.py"):
@@ -217,15 +277,53 @@ def generate_query(obj, models, filename=f"{str(settings.BASE_DIR)}/queries.py")
         generate_file(filename, code)
 
 
-def generate_mutation(filename=f"{str(settings.BASE_DIR)}/mutations.py"):
-    code = "from strawberry_django_plus import gql\n\n\n"
-    code += "@gql.type"
-    code += "class Mutation:"
-    code += "    pass:"
+def generate_queries(models, filename=f"{str(settings.BASE_DIR)}/queries.py"):
+    code = "from strawberry_django_plus import gql\n"
+    code += "from typing import List, Optional\n"
+    for app in get_generated_apps():
+        code += f"from {app}.models import *\n"
+    code += "from .types import *\n"
+    # end of imports
+    code += "\n"
+    code += f"""@gql.type\n"""
+    # define the class for the graphql query type
+    code += f"class Query:\n"
+    for model in models:
+        # field resolver for all types
+        code += f"    {model.__name__.lower()}s: List[{model.__name__}Type] = gql.django.field()\n"
+        code += f"    # select a single {model.__name__} object \n"
+        code += f"    @gql.django.field\n"
+        code += f"    def {model.__name__.lower()}(self, id: int) -> {model.__name__}Type:\n"
+        code += f"        return {model.__name__}.objects.get(pk=id)\n\n\n"
+    generate_file(filename, code)
 
 
-def generate_crud_api():
-    pass
+def generate_mutation(models, filename=f"{str(settings.BASE_DIR)}/mutations.py"):
+    code = "from strawberry_django_plus import gql\n"
+    code += "from .types import *\n"
+    code += "from .inputs import *\n\n\n"
+    code += "@gql.type\n"
+    code += "class Mutation:\n"
+    for model in models:
+        code += f"    create{model.__name__}: {model.__name__}Type = gql.django.create_mutation({model.__name__}Input)\n"
+        code += f"    update{model.__name__}: {model.__name__}Type = gql.django.update_mutation({model.__name__}InputPartial)\n"
+        code += f"    delete{model.__name__}: {model.__name__}Type = gql.django.delete_mutation(gql.NodeInput)\n"
+    generate_file(filename, code)
+
+
+def generate_schema(filename=f"{str(settings.BASE_DIR)}/schema.py"):
+    code = """from strawberry import Schema\n"""
+    code += "from strawberry_django_plus.optimizer import DjangoOptimizerExtension\n"
+    code += "from .queries import Query\n"
+    code += "from .mutations import Mutation\n\n\n"
+    code += "graphql_schema = Schema(\n"
+    code += "    query=Query,\n"
+    code += "    mutation=Mutation,\n"
+    code += "    extensions=[\n"
+    code += "        DjangoOptimizerExtension,\n"
+    code += "    ]\n"
+    code += ")\n"
+    generate_file(filename, code)
 
 
 def generate_aggregations():
@@ -238,6 +336,37 @@ def generate_relations():
 
 def generate_joins():
     pass
+
+
+def generate_crud_api(obj, models, relations, api_name: str = 'api'):
+    base_dir = f"{str(settings.BASE_DIR)}/{api_name}"
+    try:
+        os.mkdir(base_dir)
+    except Exception as e:
+        print(f"Error when creating the file ... {e}")
+    # set the directory as a module
+    generate_file(base_dir + "/__init__.py", "")
+    # files = ["/inputs.py", "/filters.py", "/orders.py"]
+    # generate_file(filename, code)
+    generate_inputs(obj, models, filename=base_dir + "/inputs.py")
+    generate_filters(obj, models, relations, filename=base_dir + "/filters.py")
+    generate_orders(obj, models, relations, filename=base_dir + "/orders.py")
+    generate_types(obj, models, relations, filename=base_dir + "/types.py")
+    generate_queries(models, filename=base_dir + "/queries.py")
+    generate_mutation(models, filename=base_dir + "/mutations.py")
+    generate_schema(filename=base_dir + "/schema.py")
+    # add url for graphql in the main app
+    from platform import system
+    if system().lower() == "windows":
+        main_app = '\\'+str(settings.BASE_DIR).split('\\')[-1] + '\\'
+    else:
+        main_app = '/'+str(settings.BASE_DIR).split('/')[-1] + '/'
+    code = "\n\n\n"
+    # import for adding graphql endpoint with strawberry
+    code += f"from {api_name}.schema import graphql_schema\n"
+    code += f"from strawberry.django.views import GraphQLView\n"
+    code += "urlpatterns += path('graphql/', GraphQLView.as_view(schema=graphql_schema))\n"
+    generate_file(str(settings.BASE_DIR) + main_app+'urls.py', code)
 
 
 # generate relations from models
@@ -259,6 +388,9 @@ class Command(BaseCommand):
         # for each models
         parser.add_argument('-ex', '--exclude', nargs='+', type=str,
                             help="Specify models fields to exclude a django model ")
+        # add target module for the generated crud api
+        parser.add_argument('-t', '--target', nargs=1, type=str,
+                            help="Specify the path to generate the crud api")
 
     def handle(self, *args, **kwargs):
         global models
@@ -310,7 +442,7 @@ class Command(BaseCommand):
                 else:
                     generate_query_type(self, models)
         # generate type query resolver for specified for the specified models
-        if commands[1] == "resolvers":
+        if commands[1] == "queries":
             generate_query(self, models)
         # generate the specified for the specified models
         if commands[1] == "field":
@@ -397,3 +529,10 @@ class Command(BaseCommand):
         # generate an input partial type for specified for the specified models
         if commands[1] == "partials":
             pass
+
+        # generate a crud api
+        if commands[1] == "api":
+            if kwargs.get('target'):
+                generate_crud_api(self, models, relations, api_name=kwargs.get('target')[0])
+            else:
+                generate_crud_api(self, models, relations)

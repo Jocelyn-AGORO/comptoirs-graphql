@@ -19,3 +19,8 @@ from django.urls import path
 urlpatterns = [
     path('admin/', admin.site.urls),
 ]
+
+from tests_api import schema
+from strawberry.django.views import GraphQLView
+
+urlpatterns.append(path('graphql/', GraphQLView.as_view(schema=schema.graphql_schema)))

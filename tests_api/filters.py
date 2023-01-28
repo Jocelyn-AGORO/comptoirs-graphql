@@ -1,17 +1,15 @@
 from strawberry_django_plus import gql
-from typing import List, Optional
 from comptoirs_app.models import *
 
-@gql.django.type(Categorie)
-class CategorieType:
+@gql.django.filters.filter(Categorie, lookups=True)
+class CategorieFilter:
     code: gql.auto
     libelle: gql.auto
     description: gql.auto
+    produit: 'ProduitFilter'
 
-    produits: 'List[ProduitType]'
-
-@gql.django.type(Client)
-class ClientType:
+@gql.django.filters.filter(Client, lookups=True)
+class ClientFilter:
     code: gql.auto
     societe: gql.auto
     contact: gql.auto
@@ -23,11 +21,10 @@ class ClientType:
     pays: gql.auto
     telephone: gql.auto
     fax: gql.auto
+    commande: 'CommandeFilter'
 
-    commandes: 'List[CommandeType]'
-
-@gql.django.type(Commande)
-class CommandeType:
+@gql.django.filters.filter(Commande, lookups=True)
+class CommandeFilter:
     numero: gql.auto
     client: gql.auto
     saisiele: gql.auto
@@ -40,25 +37,21 @@ class CommandeType:
     code_postal_livraison: gql.auto
     pays_livraison: gql.auto
     remise: gql.auto
+    client: 'ClientFilter'
+    produit: 'ProduitFilter'
+    ligne: 'LigneFilter'
 
-    client: 'ClientType'
-    @gql.django.field
-    def produits(self, root, info):
-        return Commande.objects.produit_set.all()
-    lignes: 'List[LigneType]'
-
-@gql.django.type(Ligne)
-class LigneType:
+@gql.django.filters.filter(Ligne, lookups=True)
+class LigneFilter:
     id: gql.auto
     commande: gql.auto
     produit: gql.auto
     quantite: gql.auto
+    commande: 'CommandeFilter'
+    produit: 'ProduitFilter'
 
-    commande: 'CommandeType'
-    produit: 'ProduitType'
-
-@gql.django.type(Produit)
-class ProduitType:
+@gql.django.filters.filter(Produit, lookups=True)
+class ProduitFilter:
     reference: gql.auto
     nom: gql.auto
     fournisseur: gql.auto
@@ -69,10 +62,7 @@ class ProduitType:
     unites_commandees: gql.auto
     niveau_de_reappro: gql.auto
     indisponible: gql.auto
-
-    categorie: 'CategorieType'
-    @gql.django.field
-    def commandes(self, root, info):
-        return Produit.objects.commande_set.all()
-    lignes: 'List[LigneType]'
+    categorie: 'CategorieFilter'
+    commande: 'CommandeFilter'
+    ligne: 'LigneFilter'
 
