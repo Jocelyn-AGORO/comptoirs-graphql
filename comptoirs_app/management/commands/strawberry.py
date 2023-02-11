@@ -1,6 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.apps import apps
 from django.conf import settings
+from django.db.models import Count, Sum, Avg, Min, Max, StdDev, Variance
 import os
 
 
@@ -63,6 +64,26 @@ def process_relations(models):
     relations = final_reverse  # {model[0]: model[1] for model in final_reverse}
     return relations
 
+# def resolve_all_relations(relations, models):
+#     code = ""
+#     for model in models:
+#         code += resolve_relations(relations, model)
+#     return code
+
+def resolve_relations(relations, model):
+    equivalent = {
+        'OneToMany': lambda model_: f"    {model_}: Optional['{model_}Type']\n",
+        'ManyToOne': lambda model_: f"    {model_}s: Optional[List['{model_}Type']]\n",
+        'ManyToMany': lambda model_: f"    {model_}s: Optional[List['{model_}Type']]\n",
+        'OneToOne': lambda model_: f"    {model_}: Optional['{model_}Type']\n",
+        'Self': lambda model_: f"    parent{model_.capitalize()}: Optional['{model_}Type']\n"
+    }
+    code = ""
+    for relation in relations.get(model.__name__):
+        code += equivalent[relation[0]](relation[1])
+    code += "\n\n"
+    return code
+
 
 def resolve_related_fields(relations, model):
     code = ""
@@ -70,16 +91,26 @@ def resolve_related_fields(relations, model):
         if relation[0].lower() == model.lower():
             for related in relation[1]:
                 if related[0].lower() == 'manytoonerel':
-                    code += f"    {related[1].lower()}s: 'List[{related[1]}Type]'\n"
+                    # In case of reflexive association
+                    if related[1] == model:
+                        code += f"    {related[1].lower()}Children: 'List[{related[1]}Type]'\n"
+                    # In case of Normal OneToMany association
+                    else:
+                        code += f"    {related[1].lower()}s: 'List[{related[1]}Type]'\n"
                 if related[0].lower() == 'onetoonerel':
                     code += f"    {related[1].lower()}: '{related[1]}Type'\n"
                 if related[0].lower() == 'onetomanyrel':
-                    code += f"    {related[1].lower()}: '{related[1]}Type'\n"
+                    if related[1] == model:
+                        code += f"    parent{related[1]}: '{related[1]}Type'\n"
+                    else:
+                        code += f"    {related[1].lower()}: '{related[1]}Type'\n"
                 if related[0].lower() == 'manytomanyrel':
                     # automatically generate code for the reverse relationship
                     code += f"    @gql.django.field\n"
                     code += f"    def {related[1].lower()}s(self, root, info) -> List['{related[1]}Type']:\n"
-                    code += f"        return {model}.objects.{related[1].lower()}_set.all()\n"
+                    code += f"        return root.{related[1].lower()}s()\n"
+                    # code += f"        return root.{related[1].lower()}_set.all()\n"
+                    # code += f"        return {model}.objects.{related[1].lower()}_set.all()\n"
 
     return code
 
@@ -327,6 +358,15 @@ def generate_schema(filename=f"{str(settings.BASE_DIR)}/schema.py"):
 
 
 def generate_aggregations():
+    aggregators = {
+        'count': lambda column, alias, distinct, filter, default, **extra: Count(column, alias, distinct, filter, default, **extra),
+        'sum': lambda column, alias, distinct, filter, default, **extra: Sum(column, alias, distinct, filter, default, **extra),
+        'avg': lambda column, alias, distinct, filter, default, **extra: Avg(column, alias, distinct, filter, default, **extra),
+        'min': lambda column, alias, distinct, filter, default, **extra: Min(column, alias, alias, distinct, filter, default, **extra),
+        'max': lambda column, alias, distinct, filter, default, **extra: Sum(column, alias, alias, distinct, filter, default, **extra),
+        'std': lambda column, alias, distinct, filter, default, **extra: Sum(column, alias, alias, distinct, filter, default, **extra),
+        'var': lambda column, alias, distinct, filter, default, **extra: Sum(column, alias, alias, distinct, filter, default, **extra)
+    }
     pass
 
 
@@ -357,16 +397,18 @@ def generate_crud_api(obj, models, relations, api_name: str = 'api'):
     generate_schema(filename=base_dir + "/schema.py")
     # add url for graphql in the main app
     from platform import system
+    from os import system as sys
     if system().lower() == "windows":
-        main_app = '\\'+str(settings.BASE_DIR).split('\\')[-1] + '\\'
+        main_app = '\\' + str(settings.BASE_DIR).split('\\')[-1] + '\\'
     else:
-        main_app = '/'+str(settings.BASE_DIR).split('/')[-1] + '/'
+        main_app = '/' + str(settings.BASE_DIR).split('/')[-1] + '/'
     code = "\n\n\n"
     # import for adding graphql endpoint with strawberry
     code += f"from {api_name}.schema import graphql_schema\n"
     code += f"from strawberry.django.views import GraphQLView\n"
-    code += "urlpatterns += path('graphql/', GraphQLView.as_view(schema=graphql_schema))\n"
-    generate_file(str(settings.BASE_DIR) + main_app+'urls.py', code)
+    code += "urlpatterns.append(path('graphql/', GraphQLView.as_view(schema=graphql_schema)))\n"
+    generate_file(str(settings.BASE_DIR) + main_app + 'urls.py', code)
+    sys('dir')
 
 
 # generate relations from models

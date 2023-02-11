@@ -7,7 +7,6 @@ class Categorie(models.Model):
     description = models.TextField(db_column='Description', blank=True, null=True)  # Field name made lowercase.
 
     class Meta:
-        managed = False
         db_table = 'Categorie'
 
     def __str__(self):
@@ -29,8 +28,10 @@ class Client(models.Model):
     fax = models.TextField(db_column='Fax', blank=True, null=True)  # Field name made lowercase.
 
     class Meta:
-        managed = False
         db_table = 'Client'
+
+    def __str__(self):
+        return self.code
 
 
 class Commande(models.Model):
@@ -55,19 +56,28 @@ class Commande(models.Model):
     produits = models.ManyToManyField('Produit', through='Ligne')
 
     class Meta:
-        managed = False
         db_table = 'Commande'
+
+    def lignes(self):
+        return Ligne.objects.filter(commande=self)
+
+    def __str__(self):
+        return f"{self.numero}  {self.envoyeele}"
 
 
 class Ligne(models.Model):
     id = models.AutoField(db_column='Id', primary_key=True, blank=True)  # Field name made lowercase.
-    commande = models.ForeignKey(Commande, models.DO_NOTHING, db_column='Commande', related_name='commande', related_query_name='commande')  # Field name made lowercase.
-    produit = models.ForeignKey('Produit', models.DO_NOTHING, db_column='Produit', related_name='produit', related_query_name='produit')  # Field name made lowercase.
+    commande = models.ForeignKey(Commande, models.DO_NOTHING, db_column='Commande', related_name='commande',
+                                 related_query_name='commande')  # Field name made lowercase.
+    produit = models.ForeignKey('Produit', models.DO_NOTHING, db_column='Produit', related_name='produit',
+                                related_query_name='produit')  # Field name made lowercase.
     quantite = models.SmallIntegerField(db_column='Quantite')  # Field name made lowercase.
 
     class Meta:
-        managed = False
         db_table = 'Ligne'
+
+    def __str__(self):
+        return f"{self.commande.numero} {self.produit.nom} {self.quantite}"
 
 
 class Produit(models.Model):
@@ -86,5 +96,13 @@ class Produit(models.Model):
     indisponible = models.SmallIntegerField(db_column='Indisponible')  # Field name made lowercase.
 
     class Meta:
-        managed = False
         db_table = 'Produit'
+
+    def commandes(self):
+        return self.commande_set.all()
+
+    def lignes(self):
+        return Ligne.objects.filter(produit=self)
+
+    def __str__(self):
+        return self.nom
