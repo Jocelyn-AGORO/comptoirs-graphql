@@ -125,5 +125,7 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-NINJA_PAGINATION_PER_PAGE = 10
+NINJA_PAGINATION_PER_PAGE = 4
+
+API_BASE_PATH = "http://localhost:8000/api/"
 

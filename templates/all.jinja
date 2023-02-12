@@ -1,0 +1,5 @@
+# get all{{ model.__name__|lower }}s with pagination
+@{{ model.__name__|lower }}_router.get('/', response=List[{{ model.__name__ }}Schema])
+@paginate({{ model.__name__ }}Pagination)
+def {{ model.__name__|lower }}s_paginated(request):
+    return {{ model.__name__ }}.objects.all()
