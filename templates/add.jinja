@@ -1,8 +1,0 @@
-{% set model_name_lower = model.__name__|lower %}
-{% set model_name_caps = model.__name__ %}
-
-# add a new {{ model_name_lower }}
-@{{ model_name_lower }}_router.post('/', response={201: {{ model_name_caps }}Schema})
-def new_{{ model_name_lower }}(request, {{ model_name_lower }}: {{ model_name_caps }}Input ):
-    _{{ model_name_lower }} = {{ model_name_caps }}.objects.create(**{{ model_name_lower }}.dict())
-    return _{{ model_name_lower }}

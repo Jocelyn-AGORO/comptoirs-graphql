@@ -5,6 +5,7 @@ from django.db import models as dj_models
 from django.db.models import Count, Sum, Avg, Min, Max, StdDev, Variance
 from jinja2 import Environment, FileSystemLoader
 import os
+from timeit import timeit
 
 # Load the Jinja template from a file
 env = Environment(loader=FileSystemLoader("templates"))
@@ -81,6 +82,10 @@ def get_field_type(field):
         return 'time'
     else:
         return 'None'
+
+
+def is_instance(obj, field):
+    return isinstance(obj, field)
 
 
 def get_all_relationships(models):
@@ -211,15 +216,9 @@ def generate_inputs(obj, models, filename=f"{str(settings.BASE_DIR)}/inputs.py")
         # resolve related models
         code += f"class {model.__name__}Input(Schema):\n"
         for field in model._meta.fields:
-            if field != model._meta.pk and not field.is_relation:
+            if field != model._meta.pk and not field.is_relation and isinstance(field, dj_models.AutoField):
                 code += f"    {field.name}: Optional[{get_field_type(field)}]\n"
         code += "\n\n"
-        # # define the class for the graphql type
-        # code += f"    class Config:\n"
-        # code += f"        model = {model.__name__}\n\n"
-        # code += f'        model_fields = "__all__"\n\n'
-        # code += f'        model_exclude = ["{model._meta.pk.name}"]\n\n'
-    code += f"\n\n"
     if filename == "stdout":
         obj.stdout.write(obj.style.NOTICE(code))
     else:
@@ -549,6 +548,24 @@ def generate_cruds_jinja(obj, relations, models, filename):
         jinja_crud(obj, relations, model, filename)
 
 
+def jinja_schemas(obj, models, filename):
+    variables = {"models": models, "apps": get_generated_apps()}
+    code = jinja_generate("schemas.jinja", data=variables)
+    if filename == "stdout":
+        obj.stdout.write(obj.style.NOTICE(code))
+    else:
+        generate_file(filename, code)
+
+
+def jinja_inputs(obj, models, filename):
+    variables = {'models': models, 'get_key': get_key, 'get_field_type': get_field_type}
+    code = jinja_generate("inputs.jinja", data=variables)
+    if filename == "stdout":
+        obj.stdout.write(obj.style.NOTICE(code))
+    else:
+        generate_file(filename, code)
+
+
 def jinja_crud_api(obj, models, relations, api_name: str = 'jinja_api'):
     base_dir = f"{str(settings.BASE_DIR)}/{api_name}"
     try:
@@ -559,9 +576,11 @@ def jinja_crud_api(obj, models, relations, api_name: str = 'jinja_api'):
     generate_file(base_dir + "/__init__.py", "")
     # generate inputs
     # generate filters
-    generate_inputs(obj, models, filename=base_dir + "/inputs.py")
+    # generate_inputs(obj, models, filename=base_dir + "/inputs.py")
+    jinja_inputs(obj, models, filename=base_dir + "/inputs.py")
     # generate orders
-    generate_schemas(obj, models, relations, filename=base_dir + "/schemas.py")
+    # generate_schemas(obj, models, relations, filename=base_dir + "/schemas.py")
+    jinja_schemas(obj, models, filename=base_dir + "/schemas.py")
     # generate paginations
     generate_paginations(obj, models, filename=base_dir + "/pagination.py")
     # generate errors schemas
@@ -582,7 +601,7 @@ def jinja_crud_api(obj, models, relations, api_name: str = 'jinja_api'):
     # add router for each model
     for model in models:
         code += f"api.add_router('/{model.__name__.lower()}s/', {model.__name__.lower()}_router, tags=['{model.__name__.lower()}s'])\n"
-    code += "urlpatterns.append(path('api/', api.urls))\n"
+    code += f"urlpatterns.append(path('{api_name}/', api.urls))\n"
     generate_file(str(settings.BASE_DIR) + main_app + 'urls.py', code)
     # res = sys('python manage.py runserver')
     # print(res)4
@@ -647,13 +666,21 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS("types are successfully generated"))
 
         if commands[1] == "api":
-            generate_crud_api(self, models, relations)
+            res = timeit(lambda: generate_crud_api(self, models, relations), number=1)
+            print(res)
 
         if commands[1] == "jinja_api":
-            jinja_crud_api(self, models, relations)
+            res = timeit(lambda: jinja_crud_api(self, models, relations), number=1)
+            print(res)
 
         if commands[1] == "pagination":
             generate_paginations(self, models, "pagination.jinja", f"{str(settings.BASE_DIR)}/paginations.py")
+
+        if commands[1] == "inputs":
+            variables = {"models": models, "auto": dj_models.AutoField, "get_key": get_key,
+                         "get_field_type": get_field_type, "isinstance": is_instance}
+            code = jinja_generate("inputs.jinja", data=variables)
+            generate_file(f"{str(settings.BASE_DIR)}/inputs.py", code)
 
 
 def map_rel(related_obj):
