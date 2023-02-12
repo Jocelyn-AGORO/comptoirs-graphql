@@ -2,14 +2,18 @@
 {% set model_name_caps = model.__name__ %}
 {% set model_key_type = get_field_type(model._meta.pk) %}
 {% set model_key_name = get_key(model) %}
+{% set key_path = '{'~model_key_type~':'~model_key_name~'}' %}
 
 # modify the {{ model_name_lower }} with key equal to {{ model_key_name }} if exists
-@{{ model_name_lower }}_router.put('/{ {{ model_key_type }}:{{ model_key_name }} }', response={200: {{ model_name_caps }}Schema, 404: ErrorSchema})
+@{{ model_name_lower }}_router.put('/{{ key_path }}', response={200: {{ model_name_caps }}Schema, 404: {{ model_name_caps }}Error})
 def update_{{ model_name_lower }}(request, {{ model_key_name }}: {{ model_key_type }}, {{ model_name_lower }}: {{ model_name_caps }}Input):
     try:
         _{{ model_name_lower }} = {{ model_name_caps }}.objects.get(pk={{ model_key_name }})
-        _{{ model_name_lower }}.update(**{{ model_name_lower }}.dict())
+        for attr, new_value in {{ model_name_lower }}.dict().items():
+            if new_value is not None:
+                setattr(_{{ model_name_lower }}, attr, new_value)
+        _{{ model_name_lower }}.save()
         return 200, _{{ model_name_lower }}
     except {{ model_name_caps }}.DoesNotExist as e:
-        return 404, ErrorSchema()
+        return 404, {{ model_name_caps }}Error()
 

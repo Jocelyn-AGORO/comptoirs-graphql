@@ -1,5 +1,7 @@
 from ninja import Schema
 
+{% for model in models %}
+class {{ model.__name__ }}Error(Schema):
+    message: str = "Ce/Cette {{ model.__name__|lower }} probablement supprime ou inexistant(e)"
 
-class ErrorSchema(Schema):
-    message: str = "{{ model|lower }} probablement supprimé ou inexistant"
+{% endfor %}

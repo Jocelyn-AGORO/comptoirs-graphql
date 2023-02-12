@@ -25,4 +25,3 @@ from strawberry.django.views import GraphQLView
 
 urlpatterns.append(path('graphql/', GraphQLView.as_view(schema=graphql_schema)))
 
-

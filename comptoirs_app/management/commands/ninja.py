@@ -436,8 +436,8 @@ def generate_crud_api(obj, models, relations, api_name: str = 'ninja_api'):
     # print(res)4
 
 
-def errors_jinja(obj, filename):
-    code = jinja_generate("errors.jinja", data={'model': 'Model'})
+def errors_jinja(obj, models, filename):
+    code = jinja_generate("errors.jinja", data={'models': models})
     if filename == "stdout":
         obj.stdout.write(obj.style.NOTICE(code))
     else:
@@ -490,12 +490,12 @@ def delete_jinja(obj, model, filename, template_name="delete.jinja"):
 
 def _one_jinja(model, model_):
     variables = {'model': model, 'model_': model_, 'get_key': get_key, 'get_field_type': get_field_type}
-    return jinja_generate("many.jinja", data=variables)
+    return jinja_generate("rel_one.jinja", data=variables)
 
 
 def _many_jinja(model, model_):
     variables = {'model': model, 'model_': model_, 'get_key': get_key, 'get_field_type': get_field_type}
-    return jinja_generate("rel_one.jinja", data=variables)
+    return jinja_generate("many.jinja", data=variables)
 
 
 def resolve_rels_paths_jinja(relations, model):
@@ -565,7 +565,7 @@ def jinja_crud_api(obj, models, relations, api_name: str = 'jinja_api'):
     # generate paginations
     generate_paginations(obj, models, filename=base_dir + "/pagination.py")
     # generate errors schemas
-    errors_jinja(obj, filename=base_dir + "/errors.py")
+    errors_jinja(obj, models, filename=base_dir + "/errors.py")
     # web services
     generate_cruds_jinja(obj, relations, models, filename=base_dir + "/api.py")
     from platform import system

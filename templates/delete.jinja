@@ -2,14 +2,16 @@
 {% set model_name_caps = model.__name__ %}
 {% set model_key_type = get_field_type(model._meta.pk) %}
 {% set model_key_name = get_key(model) %}
+{#  concatenate with '~' #}
+{% set key_path = '{'~model_key_type~':'~model_key_name~'}' %}
 
 # delete the {{ model_name_lower }} with key equal to {{ model_key_name }} if exists
-@{{ model_name_lower }}_router.get('/{ {{ model_key_type }}:{{ model_key_name }} }', response={404: ErrorSchema})
+@{{ model_name_lower }}_router.delete('/{{ key_path }}', response={404: {{ model_name_caps }}Error})
 def delete_{{ model_name_lower }}(request, {{ model_key_name }}: {{ model_key_type }}):
     try:
         _{{ model_name_lower }} = {{ model_name_caps }}.objects.get(pk={{ model_key_name }})
         _{{ model_name_lower }}.delete()
         return { "message": True }
     except {{ model_name_caps }}.DoesNotExist as e:
-        return 404, ErrorSchema()
+        return 404, {{ model_name_caps }}Error()
 
